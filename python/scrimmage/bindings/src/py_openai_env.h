@@ -113,6 +113,8 @@ class ScrimmageOpenAIEnv {
     scrimmage::autonomy::OpenAIObservations observations_;
     scrimmage::autonomy::OpenAIActions actions_;
 
+    void run_viewer();
+    void close_viewer();
     void set_reward_range();
     void update_observation();
     std::tuple<pybind11::float_, pybind11::bool_, pybind11::dict> calc_reward();

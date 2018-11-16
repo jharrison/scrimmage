@@ -53,6 +53,9 @@
 #include <scrimmage/common/Time.h>
 #include <scrimmage/common/Random.h>
 #include <scrimmage/log/Log.h>
+#if ENABLE_VIEWER == 1
+#include <scrimmage/viewer/Viewer.h>
+#endif
 
 #include <pybind11/pybind11.h>
 #include <pybind11/numpy.h>
@@ -87,6 +90,33 @@ namespace {
 std::function<void(int)> shutdown_handler;
 void signal_handler(int signal) { shutdown_handler(signal); }
 } // namespace
+
+void ScrimmageOpenAIEnv::run_viewer() {
+    scrimmage::Viewer viewer;
+
+    auto outgoing = simcontrol_->outgoing_interface();
+    auto incoming = simcontrol_->incoming_interface();
+
+    viewer.set_incoming_interface(outgoing);
+    viewer.set_outgoing_interface(incoming);
+    viewer.set_enable_network(false);
+    viewer.init(mp_->attributes()["camera"], mp_->log_dir(), mp_->dt());
+    viewer.run();
+    std::cout << "exiting thread0" << std::endl;
+    viewer.stop();
+    std::cout << "exiting thread" << std::endl;
+}
+
+void ScrimmageOpenAIEnv::close_viewer() {
+    // simcontrol_->set_send_shutdown_msg(true);
+    simcontrol_->set_finished(true);
+    try {
+        std::cout << "joinable = " << thread_.joinable() << std::endl;
+        thread_.join();
+    } catch (std::runtime_error &e) {
+        // error thrown when the thread has already exited
+    }
+}
 
 ScrimmageOpenAIEnv::ScrimmageOpenAIEnv(
         const std::string &mission_file,
@@ -161,9 +191,7 @@ pybind11::object ScrimmageOpenAIEnv::reset() {
     shutdown_handler = [&](int /*s*/){
         std::cout << std::endl << "Exiting gracefully" << std::endl;
         simcontrol_->force_exit();
-        if (enable_gui_ && system("pkill scrimmage-viz")) {
-            // ignore error
-        }
+        close_viewer();
         throw std::exception();
     };
     sa.sa_handler = signal_handler;
@@ -252,23 +280,19 @@ void ScrimmageOpenAIEnv::reset_scrimmage(bool enable_gui) {
     if (seed_set_) {
         mp_->params()["seed"] = std::to_string(seed_);
     }
-    if (enable_gui) {
-        mp_->set_network_gui(true);
-        mp_->set_enable_gui(false);
-
-        // TODO: fix this to get feedback that the gui is running
-        if (system("scrimmage-viz &")) {
-            std::cout << "could not start scrimmage-viz" << std::endl;
-        }
-        std::this_thread::sleep_for(std::chrono::milliseconds(2000));
-    } else {
-        mp_->set_time_warp(0);
-    }
     // users may have forgotten to turn off nonlearning_mode.
     // If this code is being called then it should never be nonlearning_mode
     reset_learning_mode();
 
+    if (!enable_gui) {
+        mp_->set_time_warp(0);
+    }
     log_ = sc::preprocess_scrimmage(mp_, *simcontrol_);
+
+    if (enable_gui) {
+        thread_ = std::thread(&ScrimmageOpenAIEnv::run_viewer, this);
+    }
+
     simcontrol_->start_overall_timer();
     simcontrol_->set_time(mp_->t0());
     if (enable_gui) {
@@ -302,10 +326,10 @@ void ScrimmageOpenAIEnv::reset_scrimmage(bool enable_gui) {
 }
 
 void ScrimmageOpenAIEnv::close() {
-    postprocess_scrimmage(mp_, *simcontrol_, log_);
-    if (enable_gui_ && system("pkill scrimmage-viz")) {
-        // ignore error
+    if (enable_gui_) {
+        close_viewer();
     }
+    postprocess_scrimmage(mp_, *simcontrol_, log_);
 }
 
 void ScrimmageOpenAIEnv::seed(pybind11::object _seed) {
@@ -335,8 +359,8 @@ pybind11::tuple ScrimmageOpenAIEnv::step(pybind11::object action) {
     done |= py_done.cast<bool>();
     py_done = py::bool_(done);
 
-    if (done && enable_gui_ && system("pkill scrimmage-viz")) {
-        // ignore error
+    if (done && enable_gui_) {
+        close_viewer();
     }
 
     return py::make_tuple(observations_.observation, py_reward, py_done, py_info);

@@ -36,6 +36,8 @@ import numpy as np
 import gym
 import scrimmage.utils
 
+import pdb
+
 MISSION_FILE = 'rlsimple.xml'
 TEMP_MISSION_FILE = '.rlsimple.xml'
 
@@ -49,7 +51,7 @@ def _run_test(version, combine_actors, global_sensor, get_action, timestep=-1):
             entry_point='scrimmage.bindings:ScrimmageOpenAIEnv',
             max_episode_steps=1e9,
             reward_threshold=1e9,
-            kwargs={"enable_gui": False,
+            kwargs={"enable_gui": True,
                     "combine_actors": combine_actors,
                     "global_sensor": global_sensor,
                     "mission_file": TEMP_MISSION_FILE,
@@ -324,14 +326,18 @@ def test_timestep():
     assert env.action_space.n == 2
     assert total_reward == 1
 
+
 if __name__ == '__main__':
-    test_one_dim_discrete()
-    test_two_dim_discrete()
-    test_one_dim_continuous()
-    test_two_dim_continuous()
-    test_two_dim_tuple()
-    test_two_combined_veh_dim_discrete()
-    test_two_not_combined_veh_dim_discrete()
-    test_sim_end()
-    test_two_combined_veh_dim_discrete_global_sensor()
-    test_timestep()
+    pdb.set_trace()
+    for i in range(10):
+        print('running ' + str(i))
+        test_one_dim_discrete()
+    # test_two_dim_discrete()
+    # test_one_dim_continuous()
+    # test_two_dim_continuous()
+    # test_two_dim_tuple()
+    # test_two_combined_veh_dim_discrete()
+    # test_two_not_combined_veh_dim_discrete()
+    # test_sim_end()
+    # test_two_combined_veh_dim_discrete_global_sensor()
+    # test_timestep()

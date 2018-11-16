@@ -184,6 +184,7 @@ bool Viewer::run() {
 }
 
 bool Viewer::stop() {
+    renderWindowInteractor_->GetRenderWindow()->Finalize();
     renderWindowInteractor_->TerminateApp();
     return true;
 }
